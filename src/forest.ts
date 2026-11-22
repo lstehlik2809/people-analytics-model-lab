@@ -1,6 +1,6 @@
 import { randomSource } from "./data.ts";
 
-const treeCount = 64;
+const treeCount = 200;
 const maxDepth = 12;
 const minLeafSize = 3;
 
@@ -101,18 +101,23 @@ function predictForest(matrix: Float64Array[], target: ArrayLike<number>, classC
   const random = randomSource(20817);
   const trainCount = target.length;
   const featureCount = matrix[0].length - 1;
-  const featuresPerTree = Math.ceil(Math.sqrt(featureCount));
+  // Column zero is the regression intercept. Trees split on encoded predictors.
+  const allColumns = Array.from({ length: featureCount }, (_, index) => index + 1);
+  const classificationFeaturesPerTree = Math.ceil(Math.sqrt(featureCount));
   const width = Math.max(1, classCount);
   const result = new Float64Array((matrix.length - trainCount) * width);
   for (let treeIndex = 0; treeIndex < treeCount; treeIndex++) {
     const sample = Array.from({ length: trainCount }, () => Math.floor(random() * trainCount));
-    // Column zero is the regression intercept. Draw distinct encoded predictors for each tree.
-    const columns = Array.from({ length: featureCount }, (_, index) => index + 1);
-    for (let index = 0; index < featuresPerTree; index++) {
-      const other = index + Math.floor(random() * (featureCount - index));
-      [columns[index], columns[other]] = [columns[other], columns[index]];
+    let columns = allColumns;
+    if (classCount) {
+      columns = allColumns.slice();
+      for (let index = 0; index < classificationFeaturesPerTree; index++) {
+        const other = index + Math.floor(random() * (featureCount - index));
+        [columns[index], columns[other]] = [columns[other], columns[index]];
+      }
+      columns.length = classificationFeaturesPerTree;
     }
-    const root = fitTree(matrix, target, sample, columns.slice(0, featuresPerTree), 0, classCount);
+    const root = fitTree(matrix, target, sample, columns, 0, classCount);
     for (let row = trainCount; row < matrix.length; row++) {
       const value = predict(root, matrix[row]);
       const offset = (row - trainCount) * width;

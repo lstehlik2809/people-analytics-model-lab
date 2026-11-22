@@ -90,19 +90,25 @@ test("Random Forest classification returns deterministic held-out vote fractions
   for (const [row, expectedClass] of [2, 0, 1].entries()) {
     const scores = votes.slice(row * 3, (row + 1) * 3);
     assert.equal(scores.reduce((sum, score) => sum + score, 0), 1);
-    assert.ok(scores.every((score) => Number.isInteger(score * 64)));
+    assert.ok(scores.every((score) => {
+      const votes = score * 200;
+      return Math.abs(votes - Math.round(votes)) < 1e-12;
+    }));
     assert.ok(scores[expectedClass] > 0.9);
   }
 });
 
-test("Random Forest regression learns numeric responses from training rows only", () => {
+test("Random Forest regression uses all selected predictors and learns from training rows only", () => {
   const targets = Float64Array.from({ length: 40 }, (_, row) => row < 20 ? 4 : 20);
   const train = Array.from(targets, (target, row) => target + row % 20 / 100);
   const predictor: FeatureColumn = { name: "x", kind: "numerical", values: [...train, 4.1, 20.1] };
-  const matrix = designMatrix([predictor], targets.length, predictor.values.length);
+  const noise = [3, 5, 7].map((period): FeatureColumn => ({
+    name: `noise-${period}`, kind: "numerical", values: Array.from(predictor.values, (_, row) => row % period),
+  }));
+  const matrix = designMatrix([predictor, ...noise], targets.length, predictor.values.length);
   const predictions = forestRegression(matrix, targets);
   assert.deepEqual([...predictions], [4, 20]);
-  const extended = forestRegression([...matrix, Float64Array.of(1, 99999)], targets);
+  const extended = forestRegression([...matrix, Float64Array.of(1, 99999, 0, 0, 0)], targets);
   assert.deepEqual(extended.slice(0, 2), predictions);
 });
 
