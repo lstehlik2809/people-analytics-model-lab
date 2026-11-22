@@ -4,17 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#183c35">
-    <meta name="description" content="Explore tabular foundation models for people analytics. Compare Kumo Tabular Small with Random Forest and linear or logistic regression on fictional employee data.">
+    <meta name="description" content="Explore a self-service workflow for small and medium-sized people analytics datasets. Compare Kumo Tabular Small with traditional models on fictional employee data.">
     <link rel="icon" type="image/png" href="./favicon.png">
-    <title>Tabular Foundation Models | People Analytics Model Lab</title>
+    <title>Tabular Foundation Models in People Analytics</title>
   </head>
   <body>
     <a class="skip-link" href="#setup">Skip to analysis</a>
     <header class="masthead">
       <div class="page masthead-inner">
         <div class="site-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        <h1>Tabular Foundation Models</h1>
-        <p>Try a tabular foundation model on fictional employee data. Compare NVIDIA’s Kumo Tabular Small with Random Forest and linear or logistic regression.</p>
+        <h1>Tabular Foundation Models in People Analytics</h1>
+        <p>Try a self-service workflow on a small, fictional employee dataset. Choose an outcome and predictors, then compare Kumo Tabular Small with Random Forest and linear or logistic regression.</p>
         <a href="#method" class="method-link">How the models learn</a>
       </div>
     </header>
@@ -71,6 +71,14 @@
       </div>
       <section id="method" class="method" aria-labelledby="method-title">
         <h2 id="method-title">How the models learn</h2>
+        <div class="method-intro">
+          <p>For small and medium-sized people analytics datasets, a tabular foundation model can offer a first predictive comparison with less manual data preparation and tuning. In this lab, you choose the outcome and predictors. The app prepares the inputs and uses Kumo’s pretrained weights directly.</p>
+          <p>Newer models can handle much larger tables. Prior Labs reports running TabPFN-3 on one million rows on an H100 GPU. This browser lab uses 1,470 fictional employee records to show the workflow on a small dataset.</p>
+          <div class="method-sources">
+            <a href="https://www.nature.com/articles/s41586-024-08328-6" target="_blank" rel="noopener">TabPFN study on smaller tables</a>
+            <a href="https://priorlabs.ai/technical-reports/tabpfn-3" target="_blank" rel="noopener">TabPFN-3 scaling report</a>
+          </div>
+        </div>
         <div class="method-grid">
           <article>
             <h3>Tabular foundation models</h3>
@@ -78,7 +86,6 @@
             <p>This lab uses Kumo Tabular Small, the smallest of NVIDIA’s three Kumo Tabular sizes at about 28 million parameters. It was pretrained on simulated tables.</p>
             <div class="method-sources">
               <a href="https://docs.nvidia.com/sdgm/structured-data-models/models/kumo-tabular" target="_blank" rel="noopener">NVIDIA model documentation</a>
-              <a href="https://www.nature.com/articles/s41586-024-08328-6" target="_blank" rel="noopener">TabPFN paper in Nature</a>
             </div>
           </article>
           <article>

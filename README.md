@@ -1,8 +1,8 @@
-# People Analytics Model Lab
+# Tabular Foundation Models in People Analytics
 
-A browser lab for exploring tabular foundation models on IBM’s fictional employee data. It uses NVIDIA Kumo Tabular Small as an example of a pretrained model that predicts from labeled rows in context. Linear or logistic regression and Random Forest fit to those same training rows. Change the outcome and predictors to compare all three on the same held-out rows. [NVIDIA Kumo Tabular documentation](https://docs.nvidia.com/sdgm/structured-data-models/models/kumo-tabular)
+A self-service browser lab for exploring tabular foundation models on IBM’s fictional employee data. Choose an outcome and predictors, and the app prepares the inputs. Kumo Tabular Small uses its pretrained weights to predict from labeled rows in context. Linear or logistic regression and Random Forest fit to those same training rows. The app compares all three on the same held-out rows. [NVIDIA Kumo Tabular documentation](https://docs.nvidia.com/sdgm/structured-data-models/models/kumo-tabular)
 
-[Open People Analytics Model Lab](https://lstehlik2809.github.io/people-analytics-model-lab/)
+[Open the lab](https://lstehlik2809.github.io/people-analytics-model-lab/)
 
 ## Run locally
 

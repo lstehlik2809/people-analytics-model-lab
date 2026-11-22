@@ -282,6 +282,7 @@ canvas { display: block; width: 100%; }
 .definitions dd { margin: 2px 0 8px; }
 
 .method { border-top: 1px solid #afbeb0; padding-block: 21px 31px; }
+.method-intro { max-width: 76ch; margin-block: 9px 22px; }
 .method-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px 30px; margin-block: 16px 21px; }
 .method h3 { font-size: 1rem; font-weight: 680; margin-bottom: 5px; }
 .method p { font-size: .94rem; line-height: 1.55; color: var(--muted); }
