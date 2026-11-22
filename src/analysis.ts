@@ -13,11 +13,11 @@ type Status =
   | { phase: "load"; loaded?: number; total?: number }
   | { phase: "predict" };
 
-export function prepareAnalysis(rows: Row[], setup: Setup) {
+export function prepareAnalysis(rows: Row[], setup: Setup, repeat = 0) {
   const { task, outcome, predictors } = setup;
   const eligible = predictors.filter((field) => field.key !== outcome.key);
   if (eligible.length !== predictors.length || !eligible.length) throw new Error("Choose at least one predictor other than the outcome.");
-  const { train, test } = splitRows(rows, outcome, task);
+  const { train, test } = splitRows(rows, outcome, task, repeat);
   const features = getFeatures(rows, [...train, ...test], eligible);
   const labels = train.map((index) => rows[index][outcome.key]);
   const targets = task === "regression" ? Float64Array.from(labels, Number) : null;
@@ -89,9 +89,9 @@ export class AnalysisRunner {
     this.worker = null;
   }
 
-  async run(rows: Row[], setup: Setup, status: (status: Status) => void, signal: AbortSignal): Promise<Result> {
+  async run(rows: Row[], setup: Setup, status: (status: Status) => void, signal: AbortSignal, repeat = 0): Promise<Result> {
     status({ phase: "prepare" });
-    const { train, test, features, prepared, targets } = prepareAnalysis(rows, setup);
+    const { train, test, features, prepared, targets } = prepareAnalysis(rows, setup, repeat);
     const head = setup.task === "classification" ? "classifier" : "regressor";
     const classCount = prepared.classes?.length ?? 0;
     let output: Extract<WorkerResponse, { type: "result" }>;

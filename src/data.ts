@@ -81,8 +81,9 @@ function shuffle(items: number[], random: () => number) {
   }
 }
 
-export function splitRows(rows: Row[], outcome: Field, task: Task): Split {
-  const random = randomSource(740512);
+// Repeat 0 is the split behind the displayed results. Later repeats reshuffle the same rows.
+export function splitRows(rows: Row[], outcome: Field, task: Task, repeat = 0): Split {
+  const random = randomSource(740512 ^ Math.imul(repeat, 0x9e3779b1));
   const strata = new Map<string, number[]>();
   for (const [index, row] of rows.entries()) {
     const key = task === "classification" ? row[outcome.key] : "";

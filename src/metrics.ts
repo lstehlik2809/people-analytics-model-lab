@@ -1,3 +1,5 @@
+import type { Result } from "./analysis.ts";
+
 export type Point = { x: number; y: number };
 
 export function precisionRecall(actual: number[], scores: ArrayLike<number>, positive: number) {
@@ -55,4 +57,48 @@ export function regressionMetrics(actual: number[], predictions: ArrayLike<numbe
 
 export function classScores(scores: ArrayLike<number>, count: number, code: number): Float64Array {
   return Float64Array.from({ length: scores.length / count }, (_, row) => scores[row * count + code]);
+}
+
+export const modelKeys = ["kumo", "baseline", "forest"] as const;
+
+/** One split's metrics, each with a value per model in modelKeys order. Average precision is keyed by class value. */
+export type SplitScores = Record<string, number[]>;
+
+export function splitScores(result: Result): SplitScores {
+  const predictions = modelKeys.map((key) => result[key]);
+  if (result.task === "regression") {
+    const metrics = predictions.map((values) => regressionMetrics(result.actual, values));
+    return {
+      mae: metrics.map(({ mae }) => mae),
+      rmse: metrics.map(({ rmse }) => rmse),
+      r2: metrics.map(({ r2 }) => r2 ?? NaN),
+    };
+  }
+  const { actual, classes } = result;
+  const metrics = predictions.map((values) => classificationMetrics(actual, values, classes.length));
+  const scores: SplitScores = {
+    balanced: metrics.map(({ balanced }) => balanced),
+    accuracy: metrics.map(({ accuracy }) => accuracy),
+  };
+  // Class codes follow each split's training order, so key by the class value.
+  classes.forEach((value, code) => {
+    scores[`ap:${value}`] = predictions.map((values) =>
+      precisionRecall(actual, classScores(values, classes.length, code), code).ap);
+  });
+  return scores;
+}
+
+/** Per model: mean and range of one metric across splits, and the number of splits where it was best. Ties count for each tied model. */
+export function acrossSplits(splits: SplitScores[], metric: string, direction: "higher" | "lower") {
+  const rows = splits.map((split) => split[metric]);
+  const best = rows.map((row) => direction === "higher" ? Math.max(...row) : Math.min(...row));
+  return modelKeys.map((_, model) => {
+    const values = rows.map((row) => row[model]);
+    return {
+      mean: values.reduce((sum, value) => sum + value, 0) / values.length,
+      min: Math.min(...values),
+      max: Math.max(...values),
+      best: values.filter((value, split) => value === best[split]).length,
+    };
+  });
 }
