@@ -55,14 +55,16 @@
               <button type="submit" class="primary" id="run">Run comparison</button>
             </fieldset>
             <button type="button" class="cancel" id="cancel" hidden>Cancel run</button>
+            <div class="run-activity" id="run-activity" aria-hidden="true" hidden></div>
             <p class="help run-help">Runs on your CPU. First use downloads about 115–120 MB per mode, plus the runtime as needed.</p>
           </form>
         </section>
-        <section class="results" aria-labelledby="results-title">
+        <section class="results" id="results-panel" aria-labelledby="results-title">
           <div class="section-head results-head">
             <h2 id="results-title" tabindex="-1">Model comparison</h2>
             <span class="evaluation-label">Held-out evaluation</span>
           </div>
+          <div class="result-freshness" id="result-freshness" role="status" aria-atomic="true"></div>
           <div id="run-status" role="status" aria-live="polite"></div>
           <div id="results-content"></div>
         </section>

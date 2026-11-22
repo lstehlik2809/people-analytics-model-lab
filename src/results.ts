@@ -26,7 +26,7 @@ function modelLabel({ key, name }: Model) {
   return `<i class="model-marker ${key}" aria-hidden="true"></i>${name}`;
 }
 
-export function emptyResults(container: HTMLElement, setup: Setup, changed: boolean) {
+export function emptyResults(container: HTMLElement, setup: Setup) {
   const models = modelList(setup.task === "classification" ? "Logistic regression" : "Linear regression");
   container.innerHTML = `
     <div class="empty">
@@ -35,7 +35,7 @@ export function emptyResults(container: HTMLElement, setup: Setup, changed: bool
         <div class="diagram-connector"></div>
         <div class="diagram-models"><span></span><span></span><span></span></div>
       </div>
-      <h3>${changed ? "Ready for a new comparison" : "Compare three models on the same test rows"}</h3>
+      <h3>Compare three models on the same test rows</h3>
       <p>Run the comparison to see how the models predict <strong>${escape(setup.outcome.name.toLowerCase())}</strong>.</p>
     </div>
     <div class="empty-footer">

@@ -17,8 +17,11 @@ const selected = get("selected-predictors");
 const runButton = get<HTMLButtonElement>("run");
 const resetButton = get<HTMLButtonElement>("reset");
 const cancelButton = get<HTMLButtonElement>("cancel");
+const activity = get("run-activity");
 const dataMessage = get("data-message");
 const status = get("run-status");
+const resultsPanel = get("results-panel");
+const resultFreshness = get("result-freshness");
 const content = get("results-content");
 const runner = new AnalysisRunner();
 
@@ -45,7 +48,7 @@ let selections = defaultSetup();
 let dataset: Row[] | null = null;
 let active: AbortController | null = null;
 let stopCharts: (() => void) | undefined;
-let shownResult = false;
+let completedSetup: Setup | null = null;
 
 function available(): Field[] {
   return fields.filter(({ key }) => key !== selections[task].outcome);
@@ -86,21 +89,41 @@ function renderControls() {
   updateSelection();
 }
 
-function setEmpty() {
+function showResultFreshness(stale: boolean) {
+  if (resultsPanel.classList.contains("is-stale") === stale) return;
+  resultsPanel.classList.toggle("is-stale", stale);
+  resultFreshness.innerHTML = stale
+    ? "<strong>Previous results</strong> Run the comparison again to use the current setup."
+    : "";
+}
+
+function clearResults() {
+  completedSetup = null;
   stopCharts?.();
   stopCharts = undefined;
-  emptyResults(content, setup(), shownResult);
+  content.replaceChildren();
+  showResultFreshness(false);
 }
 
 function setupChanged() {
   status.replaceChildren();
-  setEmpty();
+  const current = setup();
+  if (!completedSetup) {
+    emptyResults(content, current);
+    return;
+  }
+  const previous = completedSetup;
+  // Both predictor lists follow the same field order from setup().
+  showResultFreshness(current.task !== previous.task || current.outcome.key !== previous.outcome.key ||
+    current.predictors.length !== previous.predictors.length ||
+    current.predictors.some(({ key }, index) => key !== previous.predictors[index].key));
 }
 
 function setBusy(busy: boolean) {
   inputs.disabled = busy || !dataset;
   resetButton.disabled = busy || !dataset;
   cancelButton.hidden = !busy;
+  activity.hidden = !busy;
   content.setAttribute("aria-busy", String(busy));
 }
 
@@ -138,7 +161,7 @@ resetButton.addEventListener("click", () => {
   task = "classification";
   form.querySelector<HTMLInputElement>('input[value="classification"]')!.checked = true;
   picker.open = false;
-  shownResult = false;
+  clearResults();
   renderControls();
   setupChanged();
 });
@@ -158,12 +181,10 @@ form.addEventListener("submit", async (event) => {
   const { signal } = active;
   const current = setup();
   picker.open = false;
-  stopCharts?.();
-  content.replaceChildren();
+  clearResults();
   setBusy(true);
   cancelButton.focus({ preventScroll: true });
   let downloadBucket = -1;
-  let completed = false;
   try {
     const result = await runner.run(dataset, current, (update) => {
       if (update.phase === "prepare") announce("Preparing the analysis", "Creating the shared training and test sets.");
@@ -181,11 +202,10 @@ form.addEventListener("submit", async (event) => {
       }
     }, signal);
     stopCharts = renderResults(content, result);
-    shownResult = true;
-    completed = true;
+    completedSetup = current;
     status.innerHTML = '<span class="sr-only">Comparison complete.</span>';
   } catch (error) {
-    setEmpty();
+    emptyResults(content, current);
     if (signal.aborted) {
       announce("Run canceled.");
     } else {
@@ -197,7 +217,7 @@ form.addEventListener("submit", async (event) => {
     active = null;
     setBusy(false);
     if (restoreFocus) {
-      if (completed) {
+      if (completedSetup) {
         const heading = get("results-title");
         const needsScroll = heading.getBoundingClientRect().top > window.innerHeight / 2;
         heading.focus({ preventScroll: needsScroll });
@@ -211,7 +231,7 @@ form.addEventListener("submit", async (event) => {
 
 renderControls();
 setBusy(false);
-setEmpty();
+emptyResults(content, setup());
 fetch(`${import.meta.env.BASE_URL}data/ibm-hr-attrition.csv`)
   .then((response) => {
     if (!response.ok) throw new Error("Dataset request failed.");
