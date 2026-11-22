@@ -163,26 +163,21 @@ form.addEventListener("submit", async (event) => {
   setBusy(true);
   cancelButton.focus({ preventScroll: true });
   let downloadBucket = -1;
-  let usingFallback = false;
   let completed = false;
   try {
     const result = await runner.run(dataset, current, (update) => {
       if (update.phase === "prepare") announce("Preparing the analysis", "Creating the shared training and test sets.");
-      if (update.phase === "fallback") {
-        usingFallback = true;
-        downloadBucket = -1;
-      }
       if (update.phase === "load") {
         const progress = update.total ? Math.min(100, Math.floor(100 * (update.loaded ?? 0) / update.total)) : undefined;
         const bucket = progress === undefined ? -1 : Math.floor(progress / 5);
         if (progress === undefined || bucket > downloadBucket) {
           downloadBucket = bucket;
-          announce(usingFallback ? "Switching to CPU" : "Loading Kumo Tabular Small",
+          announce("Loading Kumo Tabular Small",
             progress === undefined ? "The first download may take a minute." : `${progress}% downloaded`, progress);
         }
       }
       if (update.phase === "predict") {
-        announce("Running both models", update.device === "webgpu" ? "Comparing held-out predictions on WebGPU." : "Comparing held-out predictions on your CPU. This may take a minute.");
+        announce("Running three models", "Comparing held-out predictions on your CPU. This may take a minute.");
       }
     }, signal);
     stopCharts = renderResults(content, result);
@@ -202,8 +197,14 @@ form.addEventListener("submit", async (event) => {
     active = null;
     setBusy(false);
     if (restoreFocus) {
-      if (completed) get("results-title").focus();
-      else runButton.focus({ preventScroll: true });
+      if (completed) {
+        const heading = get("results-title");
+        const needsScroll = heading.getBoundingClientRect().top > window.innerHeight / 2;
+        heading.focus({ preventScroll: needsScroll });
+        if (needsScroll) heading.scrollIntoView({ block: "start" });
+      } else {
+        runButton.focus({ preventScroll: true });
+      }
     }
   }
 });

@@ -65,7 +65,7 @@ export function parseData(csv: string): Row[] {
   });
 }
 
-function randomSource(seed: number) {
+export function randomSource(seed: number) {
   return () => {
     seed ^= seed << 13;
     seed ^= seed >>> 17;

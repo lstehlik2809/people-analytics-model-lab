@@ -1,18 +1,17 @@
 import { getFeatures, splitRows, type Field, type Row } from "./data.ts";
 import { classProbabilities, prepare, regressionOutputs, type Task } from "./kumo/preprocess.ts";
-import type { Device, Head, WorkerRequest, WorkerResponse } from "./kumo/worker.ts";
+import type { Head, WorkerRequest, WorkerResponse } from "./kumo/worker.ts";
 
 export type Setup = { task: Task; outcome: Field; predictors: Field[] };
-type ResultBase = { setup: Setup; trainCount: number; testCount: number; device: Device; fallback: boolean };
+type ResultBase = { setup: Setup; trainCount: number; testCount: number; baseline: Float64Array; forest: Float64Array };
 export type Result =
-  | (ResultBase & { task: "classification"; classes: string[]; actual: number[]; kumo: Float32Array; baseline: Float64Array })
-  | (ResultBase & { task: "regression"; actual: number[]; kumo: Float64Array; baseline: Float64Array });
+  | (ResultBase & { task: "classification"; classes: string[]; actual: number[]; kumo: Float32Array })
+  | (ResultBase & { task: "regression"; actual: number[]; kumo: Float64Array });
 
 type Status =
   | { phase: "prepare" }
-  | { phase: "load"; device: Device; loaded?: number; total?: number }
-  | { phase: "predict"; device: Device }
-  | { phase: "fallback" };
+  | { phase: "load"; loaded?: number; total?: number }
+  | { phase: "predict" };
 
 export function prepareAnalysis(rows: Row[], setup: Setup) {
   const { task, outcome, predictors } = setup;
@@ -30,14 +29,11 @@ export function prepareAnalysis(rows: Row[], setup: Setup) {
   return { train, test, features, prepared, targets };
 }
 
-function availableDevice(): Device {
-  return "gpu" in navigator ? "webgpu" : "wasm";
-}
-
 function checkedOutput(result: Extract<WorkerResponse, { type: "result" }>, rows: number, activeColumns: number, head: Head) {
   const width = head === "classifier" ? 10 : 999;
+  const predictionCount = rows * (head === "classifier" ? activeColumns : 1);
   if (result.dims.length !== 2 || result.dims[0] !== rows || result.dims[1] !== width ||
-    result.logits.length !== rows * width || result.baseline.length !== rows * (head === "classifier" ? activeColumns : 1)) {
+    result.logits.length !== rows * width || result.baseline.length !== predictionCount || result.forest.length !== predictionCount) {
     throw new Error("A model returned an unexpected number of scores or rows.");
   }
   for (let row = 0; row < rows; row++) {
@@ -46,12 +42,12 @@ function checkedOutput(result: Extract<WorkerResponse, { type: "result" }>, rows
     }
   }
   if (!result.baseline.every(Number.isFinite)) throw new Error("The traditional model produced non-finite predictions.");
+  if (!result.forest.every(Number.isFinite)) throw new Error("Random Forest produced non-finite predictions.");
   return result;
 }
 
 export class AnalysisRunner {
   private worker: Worker | null = null;
-  private device = availableDevice();
 
   private request(request: WorkerRequest, status: (status: Status) => void, signal: AbortSignal) {
     signal.throwIfAborted();
@@ -77,7 +73,7 @@ export class AnalysisRunner {
       worker.onmessageerror = () => fail("The browser could not read the model response.");
       worker.onmessage = ({ data }: MessageEvent<WorkerResponse>) => {
         if (data.type === "progress") {
-          status({ phase: "load", device: this.device, loaded: data.loaded, total: data.total });
+          status({ phase: "load", loaded: data.loaded, total: data.total });
           return;
         }
         if (data.type === "error") return fail(data.message);
@@ -98,38 +94,24 @@ export class AnalysisRunner {
     const { train, test, features, prepared, targets } = prepareAnalysis(rows, setup);
     const head = setup.task === "classification" ? "classifier" : "regressor";
     const classCount = prepared.classes?.length ?? 0;
-    const runModel = async () => {
-      status({ phase: "load", device: this.device });
-      const loaded = await this.request({ type: "load", head, device: this.device }, status, signal);
+    let output: Extract<WorkerResponse, { type: "result" }>;
+    try {
+      status({ phase: "load" });
+      const loaded = await this.request({ type: "load", head }, status, signal);
       if (loaded.type !== "loaded") throw new Error("The model could not start.");
-      status({ phase: "predict", device: this.device });
+      status({ phase: "predict" });
       const result = await this.request({
-        type: "run", head, features, classCount, baselineTargets: targets,
+        type: "run", head, features, classCount, regressionTargets: targets,
         x: prepared.x, rows: prepared.rows, columns: prepared.columns,
         yContext: prepared.yContext, categoricalMask: prepared.categoricalMask,
       }, status, signal);
       if (result.type !== "result") throw new Error("The model did not return predictions.");
-      return checkedOutput(result, test.length, classCount || 999, head);
-    };
-    let output: Awaited<ReturnType<typeof runModel>>;
-    let fallback = false;
-    try {
-      output = await runModel();
+      output = checkedOutput(result, test.length, classCount || 999, head);
     } catch (error) {
       this.reset();
-      signal.throwIfAborted();
-      if (this.device !== "webgpu") throw error;
-      this.device = "wasm";
-      fallback = true;
-      status({ phase: "fallback" });
-      try {
-        output = await runModel();
-      } catch (fallbackError) {
-        this.reset();
-        throw fallbackError;
-      }
+      throw error;
     }
-    const common = { setup, trainCount: train.length, testCount: test.length, baseline: output.baseline, device: this.device, fallback };
+    const common = { setup, trainCount: train.length, testCount: test.length, baseline: output.baseline, forest: output.forest };
     if (prepared.classes) {
       const classes = prepared.classes;
       return {

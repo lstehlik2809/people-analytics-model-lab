@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#183c35">
-    <meta name="description" content="Compare NVIDIA Kumo Tabular with linear and logistic regression on held-out, fictional employee data.">
+    <meta name="description" content="Compare NVIDIA Kumo Tabular, Random Forest, and linear or logistic regression on held-out, fictional employee data.">
     <link rel="icon" type="image/png" href="./favicon.png">
     <title>People Analytics Model Lab</title>
   </head>
@@ -14,7 +14,7 @@
       <div class="page masthead-inner">
         <div class="site-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
         <h1>People Analytics<br class="mobile-break"> Model Lab</h1>
-        <p>Compare a tabular foundation model with a traditional regression model on the same fictional employee data.</p>
+        <p>Compare Kumo Tabular, Random Forest, and traditional regression on fictional employee data.</p>
         <a href="#method" class="method-link">How it works</a>
       </div>
     </header>
@@ -55,7 +55,7 @@
               <button type="submit" class="primary" id="run">Run comparison</button>
             </fieldset>
             <button type="button" class="cancel" id="cancel" hidden>Cancel run</button>
-            <p class="help run-help">The model downloads on first use and runs on your device.</p>
+            <p class="help run-help">Runs on your CPU. First use downloads about 115–120 MB per mode, plus the runtime as needed.</p>
           </form>
         </section>
         <section class="results" aria-labelledby="results-title">
@@ -71,12 +71,12 @@
         <h2 id="method-title">How it works</h2>
         <div class="method-grid">
           <div>
-            <h3>One split, two models</h3>
-            <p>About 80% of rows are used for fitting or as labeled examples. Both models predict the remaining 20%, whose outcome values are used to score the predictions. Classification keeps each class represented in both sets.</p>
+            <h3>One split, three models</h3>
+            <p>About 80% of rows are used for fitting or as labeled examples. The three models predict the remaining 20%, whose outcome values are used to score the predictions. Classification keeps each class represented in both sets.</p>
           </div>
           <div>
             <h3>Models</h3>
-            <p>NVIDIA Kumo Tabular Small predicts from labeled examples. The comparison model is lightly regularized linear or logistic regression, with one-vs-rest logistic regression for multiple classes.</p>
+            <p>Kumo Tabular Small predicts from labeled examples. Random Forest combines 64 trees. The traditional model is lightly regularized linear or logistic regression, with one-vs-rest logistic regression for multiple classes.</p>
           </div>
           <div>
             <h3>Dataset</h3>

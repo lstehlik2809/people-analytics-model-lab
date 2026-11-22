@@ -1,6 +1,8 @@
 # People Analytics Model Lab
 
-A standalone browser app for exploring how NVIDIA Kumo Tabular Small compares with logistic and linear regression on IBM’s fictional employee data. Change the outcome and predictors, run both models, then check their scores and where their predictions go wrong.
+A standalone browser app for comparing NVIDIA Kumo Tabular Small, Random Forest, and linear or logistic regression on IBM’s fictional employee data. Change the outcome and predictors, run the models, then check their scores and where their predictions go wrong.
+
+[Open People Analytics Model Lab](https://lstehlik2809.github.io/people-analytics-model-lab/)
 
 ## Run locally
 
@@ -12,23 +14,24 @@ npm run build
 npm run preview
 ```
 
-Use Node.js 24. The production build in `dist/` uses relative paths and can run on GitHub Pages as a static site. First use requires internet access to download the selected model head (about 115–120 MB) and the ONNX Runtime. The model runs in a worker on the device and the browser cache can reuse downloads. The app attempts WebGPU and retries on WebAssembly if session creation, inference, or output validation fails. It keeps one model session in memory at a time.
+Use Node.js 24. The production build in `dist/` uses relative paths and can run on GitHub Pages as a static site. All three models run on the device’s CPU in a web worker. Kumo uses WebAssembly and keeps one model session in memory at a time. First use requires internet access to download the selected model head (about 115–120 MB per mode) and the ONNX Runtime as needed. The browser cache can reuse downloads.
 
 ## Evaluation
 
-Each analysis uses all 1,470 rows, with a reproducible approximately 80/20 split. Classification allocates approximately one fifth of every outcome class to the test set. Regression uses a fixed random split. Both models receive the same labeled training rows and unlabeled test features. Evaluation uses the test labels after inference. Changing predictors preserves the split for the selected outcome. Repeated exploration can guide hypotheses that need independent validation.
+Each analysis uses all 1,470 rows, with a reproducible approximately 80/20 split. Classification allocates approximately one fifth of every outcome class to the test set. Regression uses a fixed random split. The three models receive the same labeled training rows and unlabeled test features. Evaluation uses the test labels after inference. Changing predictors preserves the split for the selected outcome. Repeated exploration can guide hypotheses that need independent validation.
 
 All 31 nonconstant, nonidentifier fields can be predictors. The outcome is excluded from that run’s predictors. Outcome choices follow field types. For instance, job level and satisfaction codes are categories. Monthly income uses unspecified dataset currency units.
 
 - Kumo uses the Small ONNX classifier or regressor, one estimator and upstream context-only preprocessing. Predicted class probabilities use a softmax over the active class outputs. Regression averages the model’s 999 quantiles after reversing the training-label standardization.
 - The traditional models use an intercept, training-standardized numerical fields, and one-hot encoding with a reference level. Numeric constants in training contribute no features. Linear regression uses a ridge penalty of `1e-8` times the training count on slopes and logistic regression uses `1e-4` times the training count on slopes. Multiclass logistic regression fits one-vs-rest classifiers and normalizes their probabilities across classes.
+- Random Forest uses 64 CART trees and seed 20817. It uses the same training-only predictor encoding as traditional regression, with no intercept column. Each tree uses a bootstrap sample the size of the training set and a fixed random subset of encoded features drawn without replacement. The number of features per tree is the square root of the encoded feature count, rounded up. Splits maximize Gini impurity reduction for classification or squared-error reduction for regression, with a maximum depth of 12 and a minimum of three bootstrap draws in each child. The classifier returns tree vote fractions for each class. The regressor averages tree predictions.
 
 | What the reader needs | Display and definition |
 | --- | --- |
-| Compare how well the models rank rows from one outcome class | Average precision weights precision at score thresholds by recall gains. The precision–recall graph compares both models on common axes and marks the selected class’s test prevalence. A lower-prevalence class can be more challenging to rank. The selector defaults to the rarest test class. |
-| Compare predictions across all classes | Accuracy is the share of test rows assigned to the correct class. Balanced accuracy averages recall equally across classes. Confusion tables use test counts with observed classes in rows and highest-probability classes in columns. |
+| Compare how well the models rank rows from one outcome class | Average precision weights precision at score thresholds by recall gains. The precision–recall graph compares all three models on common axes and marks the selected class’s test prevalence. A lower-prevalence class can be more challenging to rank. The selector defaults to the rarest test class. |
+| Compare predictions across all classes | Accuracy is the share of test rows assigned to the correct class. Balanced accuracy averages recall equally across classes. Confusion tables use test counts with observed classes in rows and highest-scoring classes in columns. |
 | Compare prediction errors for a numeric outcome | MAE averages absolute test errors. RMSE is the square root of the mean squared test error and gives large errors greater weight. Both use the outcome’s units. R² compares total squared test error with variance around the test mean and can be negative. |
-| Inspect numeric predictions | Side-by-side scatterplots use identical axes and an equality line. The detail table shows the ten test rows with the largest absolute errors from either model. |
+| Inspect numeric predictions | The scatterplots use identical axes and an equality line. The detail table shows the ten test rows with the largest absolute errors across the models. |
 
 The app is an exploratory tool for people analytics practitioners. The reading order is setup, shared-split scope, side-by-side metrics, then error diagnostics. Line patterns, point shapes, labels, and tables accompany model color. Narrow layouts reflow, and native controls work with keyboard and touch.
 

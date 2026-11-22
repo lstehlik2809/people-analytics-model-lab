@@ -1,15 +1,15 @@
 /// <reference lib="webworker" />
 // Adapted from Shreyas Karnik's kumo-tabular-web (Apache-2.0).
 // Source and license are listed in public/licenses/kumo-browser-notice.txt.
-// Runs Kumo Tabular (ONNX) off the main thread with Transformers.js.
+// Runs all three models off the main thread.
 import { AutoModel, Tensor, env } from "@huggingface/transformers";
 import { designMatrix, linearRegression, logisticRegression } from "../baseline.ts";
+import { forestClassification, forestRegression } from "../forest.ts";
 import type { FeatureColumn } from "./preprocess.ts";
 
 export type Head = "classifier" | "regressor";
-export type Device = "webgpu" | "wasm";
 export type WorkerRequest =
-  | { type: "load"; head: Head; device: Device }
+  | { type: "load"; head: Head }
   | {
       type: "run";
       head: Head;
@@ -20,12 +20,12 @@ export type WorkerRequest =
       categoricalMask: Uint8Array;
       features: FeatureColumn[];
       classCount: number;
-      baselineTargets: Float64Array | null;
+      regressionTargets: Float64Array | null;
     };
 export type WorkerResponse =
   | { type: "progress"; head: Head; loaded: number; total: number }
-  | { type: "loaded"; head: Head; device: Device }
-  | { type: "result"; head: Head; logits: Float32Array; dims: number[]; baseline: Float64Array }
+  | { type: "loaded"; head: Head }
+  | { type: "result"; head: Head; logits: Float32Array; dims: number[]; baseline: Float64Array; forest: Float64Array }
   | { type: "error"; message: string };
 
 const post = (message: WorkerResponse, transfer: Transferable[] = []) =>
@@ -36,14 +36,14 @@ const revisions = {
   classifier: "db7fec7ac021759105caaaccc7865e329c1520a0",
   regressor: "71ad7c7f8aa4325b1925ea2866820c4d8b5ac235",
 };
-let current: { head: Head; model: Model; device: Device } | null = null;
+let current: { head: Head; model: Model } | null = null;
 env.allowLocalModels = false;
 if (env.backends.onnx.wasm) env.backends.onnx.wasm.numThreads = self.crossOriginIsolated ? 4 : 1;
 
-async function load(head: Head, device: Device) {
+async function load(head: Head) {
   const model = (await AutoModel.from_pretrained(`onnx-community/kumo-tabular-small-${head}-ONNX`, {
     revision: revisions[head],
-    device,
+    device: "wasm",
     dtype: "fp32",
     progress_callback: (info: { status: string; file?: string; loaded?: number; total?: number }) => {
       if (info.status === "progress" && info.file?.endsWith(".onnx_data")) {
@@ -51,26 +51,29 @@ async function load(head: Head, device: Device) {
       }
     },
   } as never)) as unknown as Model;
-  return { head, model, device };
+  return { head, model };
 }
 
 self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const msg = event.data;
   try {
     if (msg.type === "load") {
-      if (current?.head !== msg.head || current?.device !== msg.device) {
+      if (current?.head !== msg.head) {
         await current?.model.dispose();
         current = null;
-        current = await load(msg.head, msg.device);
+        current = await load(msg.head);
       }
-      post({ type: "loaded", head: msg.head, device: msg.device });
+      post({ type: "loaded", head: msg.head });
       return;
     }
     if (current?.head !== msg.head) throw new Error(`Model ${msg.head} is not loaded.`);
     const matrix = designMatrix(msg.features, msg.yContext.length, msg.rows);
     const baseline = msg.yContext instanceof Int32Array
       ? logisticRegression(matrix, msg.yContext, msg.classCount)
-      : linearRegression(matrix, msg.baselineTargets!);
+      : linearRegression(matrix, msg.regressionTargets!);
+    const forest = msg.yContext instanceof Int32Array
+      ? forestClassification(matrix, msg.yContext, msg.classCount)
+      : forestRegression(matrix, msg.regressionTargets!);
     const inputs = {
       x: new Tensor("float32", msg.x, [msg.rows, msg.columns]),
       y_context: msg.yContext instanceof Int32Array
@@ -82,8 +85,8 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       const { logits: output } = await current.model(inputs);
       try {
         const logits = Float32Array.from(output.data as Float32Array);
-        post({ type: "result", head: msg.head, logits, dims: output.dims, baseline },
-          [logits.buffer, baseline.buffer]);
+        post({ type: "result", head: msg.head, logits, dims: output.dims, baseline, forest },
+          [logits.buffer, baseline.buffer, forest.buffer]);
       } finally {
         output.dispose();
       }

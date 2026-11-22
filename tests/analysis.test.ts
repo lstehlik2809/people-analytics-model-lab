@@ -4,6 +4,7 @@ import test from "node:test";
 import { prepareAnalysis } from "../src/analysis.ts";
 import { designMatrix, linearRegression, logisticRegression } from "../src/baseline.ts";
 import { fields, parseData, splitRows, type Field } from "../src/data.ts";
+import { forestClassification, forestRegression } from "../src/forest.ts";
 import { classProbabilities, regressionOutputs, type FeatureColumn } from "../src/kumo/preprocess.ts";
 import { classificationMetrics, precisionRecall, regressionMetrics } from "../src/metrics.ts";
 
@@ -76,6 +77,47 @@ test("binary and one-vs-rest logistic predict held-out examples with normalized 
   const scores = logisticRegression(multiclass, Int32Array.of(0, 0, 1, 1, 2, 2), 3);
   assert.ok(scores[1] > 0.9);
   assert.ok(Math.abs(scores.reduce((sum, score) => sum + score, 0) - 1) < 1e-12);
+});
+
+test("Random Forest classification returns deterministic held-out vote fractions in class order", () => {
+  const targets = Int32Array.from({ length: 60 }, (_, row) => Math.floor(row / 20));
+  const train = Array.from(targets, (label, row) => label * 10 + row % 20 / 100);
+  const feature: FeatureColumn = { name: "x", kind: "numerical", values: [...train, 20.1, 0.1, 10.1] };
+  const matrix = designMatrix([feature], targets.length, feature.values.length);
+  const votes = forestClassification(matrix, targets, 3);
+  assert.deepEqual(votes, forestClassification(matrix, targets, 3));
+  assert.equal(votes.length, 9);
+  for (const [row, expectedClass] of [2, 0, 1].entries()) {
+    const scores = votes.slice(row * 3, (row + 1) * 3);
+    assert.equal(scores.reduce((sum, score) => sum + score, 0), 1);
+    assert.ok(scores.every((score) => Number.isInteger(score * 64)));
+    assert.ok(scores[expectedClass] > 0.9);
+  }
+});
+
+test("Random Forest regression learns numeric responses from training rows only", () => {
+  const targets = Float64Array.from({ length: 40 }, (_, row) => row < 20 ? 4 : 20);
+  const train = Array.from(targets, (target, row) => target + row % 20 / 100);
+  const predictor: FeatureColumn = { name: "x", kind: "numerical", values: [...train, 4.1, 20.1] };
+  const matrix = designMatrix([predictor], targets.length, predictor.values.length);
+  const predictions = forestRegression(matrix, targets);
+  assert.deepEqual([...predictions], [4, 20]);
+  const extended = forestRegression([...matrix, Float64Array.of(1, 99999)], targets);
+  assert.deepEqual(extended.slice(0, 2), predictions);
+});
+
+test("Random Forest keeps pure targets and stops when children would be too small", () => {
+  const matrix = [0, 1, 2, 3, 0, 3].map((value) => Float64Array.of(1, value));
+  assert.deepEqual([...forestClassification(matrix, Int32Array.of(1, 1, 1, 1), 3)], [0, 1, 0, 0, 1, 0]);
+  assert.deepEqual([...forestRegression(matrix, Float64Array.of(7, 7, 7, 7))], [7, 7]);
+  const short = forestRegression(matrix, Float64Array.of(4, 4, 20, 20));
+  assert.equal(short[0], short[1]);
+  assert.ok(short[0] > 4 && short[0] < 20);
+  const constant = Array.from({ length: 10 }, () => Float64Array.of(1, 4));
+  const constantScores = forestRegression([...constant, Float64Array.of(1, 0), Float64Array.of(1, 2)],
+    Float64Array.from({ length: constant.length }, (_, row) => row));
+  assert.equal(constantScores[0], constantScores[1]);
+  assert.ok(constantScores[0] > 0 && constantScores[0] < 9);
 });
 
 test("precision–recall handles ties and metrics match hand calculations", () => {
