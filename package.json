@@ -1,0 +1,20 @@
+{
+  "name": "people-analytics-model-lab",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "4.3.2"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vite": "8.3.8"
+  }
+}

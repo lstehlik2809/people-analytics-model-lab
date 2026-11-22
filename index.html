@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#183c35">
+    <meta name="description" content="Compare NVIDIA Kumo Tabular with linear and logistic regression on held-out, fictional employee data.">
+    <link rel="icon" type="image/png" href="./favicon.png">
+    <title>People Analytics Model Lab</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#setup">Skip to analysis</a>
+    <header class="masthead">
+      <div class="page masthead-inner">
+        <div class="site-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <h1>People Analytics<br class="mobile-break"> Model Lab</h1>
+        <p>Compare a tabular foundation model with a traditional regression model on the same fictional employee data.</p>
+        <a href="#method" class="method-link">How it works</a>
+      </div>
+    </header>
+    <main class="page">
+      <div class="workspace">
+        <section class="setup" aria-labelledby="setup" id="controls">
+          <div class="section-head">
+            <h2 id="setup">Set up an analysis</h2>
+            <button type="button" class="text-button" id="reset">Reset</button>
+          </div>
+          <p id="data-message" class="data-message" role="status">Loading the dataset…</p>
+          <form id="analysis-form">
+            <fieldset id="inputs" disabled>
+              <fieldset class="control">
+                <legend>Analysis type</legend>
+                <div class="mode-picker">
+                  <label><input type="radio" name="task" value="classification" checked><span>Classification</span></label>
+                  <label><input type="radio" name="task" value="regression"><span>Regression</span></label>
+                </div>
+              </fieldset>
+              <div class="control">
+                <label class="control-label" for="outcome">Outcome</label>
+                <select id="outcome"></select>
+                <p class="help" id="outcome-help"></p>
+              </div>
+              <fieldset class="control predictors">
+                <legend>Predictors <span id="predictor-count" class="count"></span></legend>
+                <div class="predictor-actions">
+                  <button type="button" class="text-button" id="select-all">Select all</button>
+                  <button type="button" class="text-button" id="clear" aria-label="Clear all predictors">Clear</button>
+                </div>
+                <details id="predictor-picker">
+                  <summary>Choose predictors</summary>
+                  <div id="predictor-options"></div>
+                </details>
+                <p id="selected-predictors" class="help selected-predictors"></p>
+              </fieldset>
+              <button type="submit" class="primary" id="run">Run comparison</button>
+            </fieldset>
+            <button type="button" class="cancel" id="cancel" hidden>Cancel run</button>
+            <p class="help run-help">The model downloads on first use and runs on your device.</p>
+          </form>
+        </section>
+        <section class="results" aria-labelledby="results-title">
+          <div class="section-head results-head">
+            <h2 id="results-title" tabindex="-1">Model comparison</h2>
+            <span class="evaluation-label">Held-out evaluation</span>
+          </div>
+          <div id="run-status" role="status" aria-live="polite"></div>
+          <div id="results-content"></div>
+        </section>
+      </div>
+      <section id="method" class="method" aria-labelledby="method-title">
+        <h2 id="method-title">How it works</h2>
+        <div class="method-grid">
+          <div>
+            <h3>One split, two models</h3>
+            <p>About 80% of rows are used for fitting or as labeled examples. Both models predict the remaining 20%, whose outcome values are used to score the predictions. Classification keeps each class represented in both sets.</p>
+          </div>
+          <div>
+            <h3>Models</h3>
+            <p>NVIDIA Kumo Tabular Small predicts from labeled examples. The comparison model is lightly regularized linear or logistic regression, with one-vs-rest logistic regression for multiple classes.</p>
+          </div>
+          <div>
+            <h3>Dataset</h3>
+            <p>IBM’s HR Attrition &amp; Performance dataset describes 1,470 fictional employees. Use it to explore prediction, with no inference about intervention effects or real employees.</p>
+          </div>
+        </div>
+        <a href="./data/SOURCE.md">Dataset source and license</a>
+        <a href="https://huggingface.co/nvidia/Kumo-Tabular">Kumo model card</a>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

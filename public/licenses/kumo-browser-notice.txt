@@ -1,0 +1,15 @@
+The Kumo preprocessing and inference worker in src/kumo are adapted from
+Shreyas Karnik’s kumo-tabular-web project at revision
+8be3b84c161569703abb41b8f7aa2ce455e740ee (Apache License, Version 2.0).
+
+https://github.com/shreyaskarnik/kumo-tabular-web/tree/8be3b84c161569703abb41b8f7aa2ce455e740ee
+
+The port retains the browser model preprocessing and output decoding, and
+adapts the worker to pinned artifacts, the app’s evaluation protocol, and
+its runtime controls. See kumo-browser-apache-2.0.txt for the license text.
+
+The NVIDIA Kumo Tabular model weights use the OpenMDW License Agreement 1.1.
+The browser downloads the Small ONNX exports from Hugging Face when needed.
+
+https://huggingface.co/onnx-community/kumo-tabular-small-classifier-ONNX/tree/db7fec7ac021759105caaaccc7865e329c1520a0
+https://huggingface.co/onnx-community/kumo-tabular-small-regressor-ONNX/tree/71ad7c7f8aa4325b1925ea2866820c4d8b5ac235
