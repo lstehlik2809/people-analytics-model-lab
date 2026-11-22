@@ -113,8 +113,9 @@ function setupChanged() {
     return;
   }
   const previous = completedSetup;
+  if (current.task !== previous.task) return;
   // Both predictor lists follow the same field order from setup().
-  showResultFreshness(current.task !== previous.task || current.outcome.key !== previous.outcome.key ||
+  showResultFreshness(current.outcome.key !== previous.outcome.key ||
     current.predictors.length !== previous.predictors.length ||
     current.predictors.some(({ key }, index) => key !== previous.predictors[index].key));
 }
