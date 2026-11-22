@@ -108,6 +108,7 @@
         <section class="method-evaluation" aria-labelledby="method-evaluation-title">
           <h3 id="method-evaluation-title">How this lab compares them</h3>
           <p>About 80% of the 1,470 fictional IBM employee rows are used as training examples. Kumo reads these rows as context with its pretrained weights fixed. Linear or logistic regression and Random Forest fit to the same training set. All three are scored on the remaining rows, whose outcomes are held back during prediction. The classification split keeps each class represented in both sets.</p>
+          <p>For classification, the No model column shows what each score would be without one. One split leaves room for chance, since the test set has about 294 rows. After a run, you can repeat the comparison on nine more splits of the same rows to see the mean and range of each score.</p>
           <div class="method-sources">
             <a href="./data/SOURCE.md" target="_blank" rel="noopener">Dataset source and license</a>
           </div>

@@ -2,7 +2,7 @@ import "./style.css";
 import { AnalysisRunner, type Setup } from "./analysis.ts";
 import { fields, groups, parseData, type Field, type Row } from "./data.ts";
 import type { Task } from "./kumo/preprocess.ts";
-import { count, emptyResults, escape, renderResults } from "./results.ts";
+import { count, emptyResults, escape, plannedSplits, renderResults, type ResultsView } from "./results.ts";
 
 function get<T extends HTMLElement = HTMLElement>(id: string) {
   return document.getElementById(id) as T;
@@ -47,7 +47,7 @@ let task: Task = "classification";
 let selections = defaultSetup();
 let dataset: Row[] | null = null;
 let active: AbortController | null = null;
-let stopCharts: (() => void) | undefined;
+let view: ResultsView | undefined;
 let completedSetup: Setup | null = null;
 
 function available(): Field[] {
@@ -99,8 +99,8 @@ function showResultFreshness(stale: boolean) {
 
 function clearResults() {
   completedSetup = null;
-  stopCharts?.();
-  stopCharts = undefined;
+  view?.stop();
+  view = undefined;
   content.replaceChildren();
   showResultFreshness(false);
 }
@@ -202,7 +202,7 @@ form.addEventListener("submit", async (event) => {
         announce("Running three models", "Comparing held-out predictions on your CPU. This may take a minute.");
       }
     }, signal);
-    stopCharts = renderResults(content, result);
+    view = renderResults(content, result);
     completedSetup = current;
     status.innerHTML = '<span class="sr-only">Comparison complete.</span>';
   } catch (error) {
@@ -228,6 +228,43 @@ form.addEventListener("submit", async (event) => {
       }
     }
   }
+});
+
+// Repeats use the completed setup, so the table stays tied to the displayed results.
+async function repeatSplits() {
+  if (!dataset || active || !view || !completedSetup) return;
+  active = new AbortController();
+  const { signal } = active;
+  const current = view;
+  setBusy(true);
+  current.setRunning(true);
+  cancelButton.focus({ preventScroll: true });
+  try {
+    while (current.splitCount() < plannedSplits) {
+      const repeat = current.splitCount();
+      status.innerHTML = `<span class="sr-only">Running split ${repeat + 1} of ${plannedSplits}.</span>`;
+      current.addSplit(await runner.run(dataset, completedSetup, () => {}, signal, repeat));
+    }
+    status.innerHTML = '<span class="sr-only">Repeated splits complete.</span>';
+  } catch (error) {
+    const kept = current.splitCount() > 1 ? "Completed splits stay in the table." : "";
+    if (signal.aborted) {
+      announce("Repeats canceled.", kept);
+    } else {
+      console.error(error);
+      announce("The repeated splits could not finish.", `${kept} Try again to continue.`.trim());
+    }
+  } finally {
+    const restoreFocus = document.activeElement === cancelButton;
+    active = null;
+    setBusy(false);
+    current.setRunning(false);
+    if (restoreFocus) (get("repeat-splits") ?? get("results-title")).focus({ preventScroll: true });
+  }
+}
+
+content.addEventListener("click", (event) => {
+  if ((event.target as HTMLElement).id === "repeat-splits") void repeatSplits();
 });
 
 renderControls();

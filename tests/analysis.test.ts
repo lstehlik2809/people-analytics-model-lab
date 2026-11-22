@@ -6,7 +6,7 @@ import { designMatrix, linearRegression, logisticRegression } from "../src/basel
 import { fields, parseData, splitRows, type Field } from "../src/data.ts";
 import { forestClassification, forestRegression } from "../src/forest.ts";
 import { classProbabilities, regressionOutputs, type FeatureColumn } from "../src/kumo/preprocess.ts";
-import { classificationMetrics, precisionRecall, regressionMetrics } from "../src/metrics.ts";
+import { acrossSplits, classificationMetrics, precisionRecall, regressionMetrics, splitScores } from "../src/metrics.ts";
 
 const rows = parseData(readFileSync(new URL("../public/data/ibm-hr-attrition.csv", import.meta.url), "utf8"));
 const getField = (key: string): Field => fields.find((field) => field.key === key)!;
@@ -29,6 +29,59 @@ test("every eligible outcome retains all employee rows with disjoint, repeatable
       assert.deepEqual(new Set(test.map((index) => rows[index][outcome.key])), all);
     }
   }
+});
+
+test("repeated splits are repeatable, stratified, and differ from the displayed split", () => {
+  const outcome = getField("Attrition");
+  assert.deepEqual(splitRows(rows, outcome, "classification", 0), splitRows(rows, outcome, "classification"));
+  const tests = Array.from({ length: 10 }, (_, repeat) => {
+    const split = splitRows(rows, outcome, "classification", repeat);
+    assert.deepEqual(split, splitRows(rows, outcome, "classification", repeat));
+    assert.equal(new Set([...split.train, ...split.test]).size, 1470);
+    assert.equal(split.test.filter((index) => rows[index].Attrition === "Yes").length, 47);
+    return new Set(split.test);
+  });
+  for (let a = 0; a < tests.length; a++) {
+    for (let b = a + 1; b < tests.length; b++) {
+      const shared = [...tests[a]].filter((index) => tests[b].has(index)).length;
+      // Independent 20% samples share about 59 of 294 rows.
+      assert.ok(shared > 30 && shared < 95, `repeats ${a} and ${b} share ${shared} test rows`);
+    }
+  }
+  const regression = splitRows(rows, getField("MonthlyIncome"), "regression", 3);
+  assert.notDeepEqual(regression, splitRows(rows, getField("MonthlyIncome"), "regression"));
+  assert.equal(regression.test.length, 294);
+});
+
+test("split scores are keyed by class value and summarized per model across splits", () => {
+  const setup = { task: "classification" as const, outcome: getField("Attrition"), predictors: [getField("Age")] };
+  const base = { setup, task: "classification" as const, trainCount: 4, testCount: 4 };
+  const miss = [1, 0, 1, 0, 1, 0, 1, 0];
+  const hit = [1, 0, 1, 0, 1, 0, 0, 1];
+  const first = splitScores({
+    ...base, classes: ["No", "Yes"], actual: [0, 0, 0, 1],
+    kumo: Float32Array.from(hit), baseline: Float64Array.from(miss), forest: Float64Array.from(miss),
+  });
+  assert.deepEqual(first, { balanced: [1, 0.5, 0.5], accuracy: [1, 0.75, 0.75], "ap:No": [1, 0.75, 0.75], "ap:Yes": [1, 0.25, 0.25] });
+  // The second split meets "Yes" first, so its class codes are reversed.
+  const flip = (scores: number[]) => scores.map((_, index) => scores[index ^ 1]);
+  const second = splitScores({
+    ...base, classes: ["Yes", "No"], actual: [1, 1, 1, 0],
+    kumo: Float32Array.from(flip(miss)), baseline: Float64Array.from(flip(hit)), forest: Float64Array.from(flip(miss)),
+  });
+  assert.deepEqual(second["ap:Yes"], [0.25, 1, 0.25]);
+  assert.deepEqual(acrossSplits([first, second], "ap:Yes", "higher"), [
+    { mean: 0.625, min: 0.25, max: 1, best: 1 },
+    { mean: 0.625, min: 0.25, max: 1, best: 1 },
+    { mean: 0.25, min: 0.25, max: 0.25, best: 0 },
+  ]);
+  const errors = acrossSplits([{ mae: [2, 2, 3] }, { mae: [4, 1, 3] }], "mae", "lower");
+  assert.deepEqual(errors.map(({ best }) => best), [1, 2, 0]);
+  const numeric = splitScores({
+    setup: { ...setup, task: "regression" }, task: "regression", trainCount: 3, testCount: 3, actual: [0, 2, 4],
+    kumo: Float64Array.of(1, 2, 1), baseline: Float64Array.of(0, 2, 4), forest: Float64Array.of(1, 2, 1),
+  });
+  assert.deepEqual(numeric, { mae: [4 / 3, 0, 4 / 3], rmse: [Math.sqrt(10 / 3), 0, Math.sqrt(10 / 3)], r2: [-0.25, 1, -0.25] });
 });
 
 test("preparation uses all selected predictors and keeps targets out of query tensors", () => {

@@ -248,7 +248,24 @@ th { font-weight: 640; }
 .metrics th:last-child, .metrics td:last-child { padding-right: 22px; }
 .metrics tbody th { font-size: .88rem; }
 .metrics td { font-size: 1.03rem; font-weight: 680; white-space: nowrap; }
-.metrics small { display: block; color: var(--muted); font-weight: 480; font-size: .72rem; }
+.metrics small { display: block; color: var(--muted); font-weight: 480; font-size: .72rem; white-space: normal; }
+.metrics .reference { color: var(--muted); font-weight: 520; }
+.stability { border-top: 1px solid var(--border); padding-block: 17px; }
+.stability > :not(.table-wrap) { margin-inline: 22px; }
+.stability .table-wrap { margin-top: 12px; }
+.stability .metrics tbody tr:last-child > * { border-bottom: 1px solid var(--border); }
+.stability-running { color: var(--muted); font-size: .85rem; margin-top: 12px; }
+.secondary {
+  min-height: 44px;
+  margin-top: 12px;
+  border: 1px solid var(--control);
+  border-radius: 6px;
+  padding: 8px 14px;
+  background: var(--surface);
+  color: var(--accent-dark);
+  font-weight: 650;
+}
+.secondary:hover { background: var(--accent-light); }
 .chart-block { border-top: 1px solid var(--border); padding: 17px 22px; }
 .chart-heading { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
 .chart-heading h3 { font: 400 1.37rem/1.2 Georgia, serif; letter-spacing: -.03em; }
@@ -310,6 +327,7 @@ canvas { display: block; width: 100%; }
   .method-link { margin-top: 3px; }
   .setup { padding: 15px; }
   .results-head, .result-scope, .chart-block, .result-detail, .result-freshness:not(:empty) { padding-inline: 14px; }
+  .stability > :not(.table-wrap) { margin-inline: 14px; }
   .result-scope { flex-wrap: wrap; }
   .compute { text-align: left; }
   .metrics th, .metrics td { padding-inline: 6px; }

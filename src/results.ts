@@ -1,16 +1,28 @@
 import type { Result, Setup } from "./analysis.ts";
 import { drawPrecisionRecall, drawScatter, type ModelKey } from "./charts.ts";
-import { classScores, classificationMetrics, precisionRecall, regressionMetrics } from "./metrics.ts";
+import {
+  acrossSplits, classScores, classificationMetrics, precisionRecall, regressionMetrics, splitScores, type SplitScores,
+} from "./metrics.ts";
 
 const integer = new Intl.NumberFormat("en");
 const decimal = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });
 const percent = new Intl.NumberFormat("en", { style: "percent", maximumFractionDigits: 1 });
 export const count = (value: number) => integer.format(value);
-const measure = (value: number | null) => value === null ? "—" : decimal.format(value);
+const measure = (value: number) => Number.isFinite(value) ? decimal.format(value) : "—";
 export const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;")
   .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 const kumoName = "Kumo Tabular Small";
+export const plannedSplits = 10;
+
+export type ResultsView = {
+  stop(): void;
+  splitCount(): number;
+  addSplit(result: Result): void;
+  setRunning(running: boolean): void;
+};
+type Splits = { scores: SplitScores[]; running: boolean };
+type Section = { stop(): void; show(): void };
 
 type Model = { key: ModelKey; name: string };
 
@@ -43,19 +55,62 @@ export function emptyResults(container: HTMLElement, setup: Setup) {
     </div>`;
 }
 
-type Metric = { name: string; direction: "higher" | "lower"; values: string[]; scope?: string };
+type Metric = {
+  id: string;
+  name: string;
+  direction: "higher" | "lower";
+  format: (value: number) => string;
+  values: number[];
+  scope?: string;
+  reference?: { value: number; note: string };
+};
 
-function metricTable(metrics: Metric[], models: Model[]) {
+// Stratified splits keep class shares fixed, so the no-model scores apply to every split.
+function metricTable(caption: string, metrics: Metric[], models: Model[], cell: (metric: Metric, model: number) => string) {
+  const reference = metrics.some((metric) => metric.reference);
   return `<div class="table-wrap">
     <table class="metrics">
-      <caption class="sr-only">Model metrics on the held-out rows</caption>
+      <caption class="sr-only">${caption}</caption>
       <thead><tr><th scope="col">Metric</th>
-      ${models.map((model) => `<th scope="col">${modelLabel(model)}</th>`).join("")}</tr></thead>
-      <tbody>${metrics.map(({ name, direction, values, scope }) => `<tr>
-        <th scope="row">${name} <small>${scope ? `${escape(scope)} · ` : ""}${direction === "higher" ? "↑ Higher" : "↓ Lower"} is better</small></th>
-        ${values.map((value) => `<td>${value}</td>`).join("")}</tr>`).join("")}</tbody>
+      ${models.map((model) => `<th scope="col">${modelLabel(model)}</th>`).join("")}
+      ${reference ? `<th scope="col">No model</th>` : ""}</tr></thead>
+      <tbody>${metrics.map((metric) => `<tr>
+        <th scope="row">${metric.name} <small>${metric.scope ? `${escape(metric.scope)} · ` : ""}${metric.direction === "higher" ? "↑ Higher" : "↓ Lower"} is better</small></th>
+        ${models.map((_, model) => `<td>${cell(metric, model)}</td>`).join("")}
+        ${reference ? `<td class="reference">${metric.reference
+    ? `${metric.format(metric.reference.value)} <small>${metric.reference.note}</small>` : "—"}</td>` : ""}</tr>`).join("")}</tbody>
     </table>
   </div>`;
+}
+
+const splitValue = (metric: Metric, model: number) => metric.format(metric.values[model]);
+
+function stability(metrics: Metric[], models: Model[], { scores, running }: Splits, testCount: number) {
+  const done = scores.length;
+  const remaining = plannedSplits - done;
+  const more = `${remaining} more ${remaining === 1 ? "split" : "splits"}`;
+  const action = running
+    ? `<p class="stability-running">Running split ${done + 1} of ${plannedSplits}…</p>`
+    : remaining > 0 ? `<button type="button" class="secondary" id="repeat-splits">Repeat on ${more}</button>` : "";
+  if (done < 2) {
+    return `<div class="chart-heading"><div><h3>Across splits</h3>
+      <p>The scores above use one split with ${count(testCount)} test rows. A gap between models can shrink or reverse on another split.</p></div></div>
+      ${action}
+      ${running ? "" : `<p class="chart-note">Each repeat reshuffles the rows and takes about as long as one run.</p>`}`;
+  }
+  const [primary] = metrics;
+  const summary = new Map(metrics.map((metric) => [metric, acrossSplits(scores, metric.id, metric.direction)]));
+  const wins = summary.get(primary)!.map(({ best }) => best);
+  const tied = wins.reduce((sum, value) => sum + value, 0) > done;
+  return `<div class="chart-heading"><div><h3>Across ${done} splits</h3>
+    <p>Mean score, with the lowest and highest below it. Each split reshuffles the same rows into training and test sets.</p></div></div>
+    ${metricTable(`Model metrics across ${done} splits`, metrics, models, (metric, model) => {
+    const { mean, min, max } = summary.get(metric)![model];
+    return `${metric.format(mean)} <small>${metric.format(min)} to ${metric.format(max)}</small>`;
+  })}
+    <p class="chart-note">${primary.direction === "higher" ? "Highest" : "Lowest"} ${primary.name.toLowerCase()}${primary.scope ? ` for ${escape(primary.scope)}` : ""}:
+      ${models.map(({ name }, index) => `${name} in ${wins[index]}${index ? "" : ` of ${done} splits`}`).join(", ")}.${tied ? " A tie counts for each tied model." : ""}</p>
+    ${action}`;
 }
 
 function resultScope(result: Result) {
@@ -78,7 +133,7 @@ function confusionTable(matrix: number[][], classes: string[], model: string) {
   </div>`;
 }
 
-function classification(container: HTMLElement, result: Extract<Result, { task: "classification" }>) {
+function classification(container: HTMLElement, result: Extract<Result, { task: "classification" }>, splits: Splits): Section {
   const { actual, classes, setup } = result;
   const n = classes.length;
   const labels = classes.map((value) => setup.outcome.labels?.[value] ?? value);
@@ -91,6 +146,7 @@ function classification(container: HTMLElement, result: Extract<Result, { task: 
   const choices = classes.map((_, code) => code).sort((a, b) => labels[a].localeCompare(labels[b], undefined, { numeric: true }));
   container.innerHTML = `${resultScope(result)}
     <div id="metric-table"></div>
+    <div class="stability" id="stability"></div>
     <div class="chart-block">
       <div class="chart-heading">
         <div><h3>Precision–recall</h3><p id="prevalence"></p></div>
@@ -109,26 +165,34 @@ function classification(container: HTMLElement, result: Extract<Result, { task: 
       <p>Counts use the highest-scoring class for each row. Average precision and the curve use the selected class. Accuracy and balanced accuracy cover all classes.</p>
       ${modelMetrics.map(({ confusion, name }) => confusionTable(confusion, labels, name)).join("")}
       <dl class="definitions">
-        <dt>Average precision</dt><dd>Precision averaged across thresholds, weighted by gains in recall. The test-set prevalence gives the no-skill reference.</dd>
-        <dt>Balanced accuracy</dt><dd>Mean recall across the outcome classes. Each class gets the same weight.</dd>
-        <dt>Accuracy</dt><dd>Share of test rows assigned to the correct class.</dd>
+        <dt>Average precision</dt><dd>Precision averaged across thresholds, weighted by gains in recall. The class’s share of the test rows gives the No model score.</dd>
+        <dt>Balanced accuracy</dt><dd>Mean recall across the outcome classes. Each class gets the same weight. Assigning every row to one class gives the No model score.</dd>
+        <dt>Accuracy</dt><dd>Share of test rows assigned to the correct class. Assigning every row to the largest class gives the No model score.</dd>
       </dl>
     </details>`;
   const picker = container.querySelector<HTMLSelectElement>("#positive-class")!;
   const canvas = container.querySelector("canvas")!;
   picker.value = String(positives.indexOf(Math.min(...positives)));
+  const largestClass = Math.max(...positives) / actual.length;
   let disconnect: (() => void) | undefined;
+  let metrics: Metric[] = [];
+  const show = () => { container.querySelector("#stability")!.innerHTML = stability(metrics, models, splits, actual.length); };
   function updateClass() {
     const code = Number(picker.value);
     const curves = models.map(({ key, name }) => ({ key, name, ...precisionRecall(actual, classScores(result[key], n, code), code) }));
     const prevalence = curves[0].prevalence;
     container.querySelector("#prevalence")!.textContent =
       `${labels[code]} · ${count(positives[code])} of ${count(actual.length)} rows (${percent.format(prevalence)})`;
-    container.querySelector("#metric-table")!.innerHTML = metricTable([
-      { name: "Average precision", scope: labels[code], direction: "higher", values: curves.map(({ ap }) => percent.format(ap)) },
-      { name: "Balanced accuracy", direction: "higher", values: modelMetrics.map(({ balanced }) => percent.format(balanced)) },
-      { name: "Accuracy", direction: "higher", values: modelMetrics.map(({ accuracy }) => percent.format(accuracy)) },
-    ], models);
+    metrics = [
+      { id: `ap:${classes[code]}`, name: "Average precision", scope: labels[code], direction: "higher", format: percent.format,
+        values: curves.map(({ ap }) => ap), reference: { value: prevalence, note: "class share" } },
+      { id: "balanced", name: "Balanced accuracy", direction: "higher", format: percent.format,
+        values: modelMetrics.map(({ balanced }) => balanced), reference: { value: 1 / n, note: "any single class" } },
+      { id: "accuracy", name: "Accuracy", direction: "higher", format: percent.format,
+        values: modelMetrics.map(({ accuracy }) => accuracy), reference: { value: largestClass, note: "largest class" } },
+    ];
+    container.querySelector("#metric-table")!.innerHTML = metricTable("Model metrics on the held-out rows", metrics, models, splitValue);
+    show();
     const summaries = curves.map(({ name, ap }) => `${name} ${percent.format(ap)}`).join(", ");
     canvas.setAttribute("aria-label", `Precision–recall for ${labels[code]}. Average precision ${summaries}. Reference prevalence ${percent.format(prevalence)}.`);
     disconnect?.();
@@ -136,10 +200,10 @@ function classification(container: HTMLElement, result: Extract<Result, { task: 
   }
   picker.addEventListener("change", updateClass);
   updateClass();
-  return () => disconnect?.();
+  return { stop: () => disconnect?.(), show };
 }
 
-function regression(container: HTMLElement, result: Extract<Result, { task: "regression" }>) {
+function regression(container: HTMLElement, result: Extract<Result, { task: "regression" }>, splits: Splits): Section {
   const { actual, setup } = result;
   const models = modelList("Linear regression");
   const modelMetrics = models.map(({ key }) => regressionMetrics(actual, result[key]));
@@ -151,12 +215,14 @@ function regression(container: HTMLElement, result: Extract<Result, { task: "reg
   const bounds: [number, number] = [Math.floor(min / step) * step, (Math.floor(max / step) + 1) * step];
   const rows = actual.map((value, row) => ({ value, row, maxError: Math.max(...models.map(({ key }) => Math.abs(result[key][row] - value))) }))
     .sort((a, b) => b.maxError - a.maxError).slice(0, 10);
+  const metrics: Metric[] = [
+    { id: "mae", name: "Mean absolute error", direction: "lower", format: measure, values: modelMetrics.map(({ mae }) => mae) },
+    { id: "rmse", name: "Root mean squared error", direction: "lower", format: measure, values: modelMetrics.map(({ rmse }) => rmse) },
+    { id: "r2", name: "R²", direction: "higher", format: measure, values: modelMetrics.map(({ r2 }) => r2 ?? NaN) },
+  ];
   container.innerHTML = `${resultScope(result)}
-    ${metricTable([
-    { name: "Mean absolute error", direction: "lower", values: modelMetrics.map(({ mae }) => measure(mae)) },
-    { name: "Root mean squared error", direction: "lower", values: modelMetrics.map(({ rmse }) => measure(rmse)) },
-    { name: "R²", direction: "higher", values: modelMetrics.map(({ r2 }) => measure(r2)) },
-  ], models)}
+    ${metricTable("Model metrics on the held-out rows", metrics, models, splitValue)}
+    <div class="stability" id="stability"></div>
     <div class="chart-block">
       <div class="chart-heading"><div><h3>Actual vs. predicted</h3><p>All plots use the same scale · ${escape(unit)}</p></div></div>
       <div class="scatter-grid">
@@ -187,9 +253,25 @@ function regression(container: HTMLElement, result: Extract<Result, { task: "reg
     canvas.setAttribute("aria-label", `${name} predicted versus actual. Mean absolute error ${measure(modelMetrics[index].mae)} ${unit}.`);
     return drawScatter(canvas, actual, result[key], bounds, key);
   });
-  return () => disconnect.forEach((stop) => stop());
+  const show = () => { container.querySelector("#stability")!.innerHTML = stability(metrics, models, splits, actual.length); };
+  show();
+  return { stop: () => disconnect.forEach((stop) => stop()), show };
 }
 
-export function renderResults(container: HTMLElement, result: Result) {
-  return result.task === "classification" ? classification(container, result) : regression(container, result);
+export function renderResults(container: HTMLElement, result: Result): ResultsView {
+  const splits: Splits = { scores: [splitScores(result)], running: false };
+  const { stop, show } = result.task === "classification"
+    ? classification(container, result, splits) : regression(container, result, splits);
+  return {
+    stop,
+    splitCount: () => splits.scores.length,
+    addSplit(next) {
+      splits.scores.push(splitScores(next));
+      show();
+    },
+    setRunning(running) {
+      splits.running = running;
+      show();
+    },
+  };
 }
