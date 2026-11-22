@@ -69,7 +69,6 @@ select { max-width: 100%; }
 .masthead p { grid-column: 2; grid-row: 2; color: #dae8dc; max-width: 68ch; font-size: .99rem; }
 .method-link { grid-column: 3; grid-row: 1 / span 2; color: #eef4e6; font-size: .88rem; font-weight: 650; }
 .masthead :focus-visible { outline-color: #deedbc; }
-.mobile-break { display: none; }
 
 .workspace {
   display: grid;
@@ -283,10 +282,14 @@ canvas { display: block; width: 100%; }
 .definitions dd { margin: 2px 0 8px; }
 
 .method { border-top: 1px solid #afbeb0; padding-block: 21px 31px; }
-.method-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px 30px; margin-block: 13px; }
-.method h3 { font-size: .94rem; font-weight: 680; margin-bottom: 3px; }
-.method p { font-size: .86rem; color: var(--muted); }
-.method a { font-size: .84rem; font-weight: 650; display: inline-block; margin: 2px 12px 2px 0; }
+.method-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px 30px; margin-block: 16px 21px; }
+.method h3 { font-size: 1rem; font-weight: 680; margin-bottom: 5px; }
+.method p { font-size: .94rem; line-height: 1.55; color: var(--muted); }
+.method p + p { margin-top: 8px; }
+.method-sources { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 9px; }
+.method-sources a { font-size: .875rem; font-weight: 650; }
+.method-evaluation { border-top: 1px solid var(--border); padding-top: 16px; }
+.method-evaluation p { max-width: 76ch; }
 
 @media (max-width: 920px) {
   .page { width: calc(100% - 44px); }
@@ -296,7 +299,7 @@ canvas { display: block; width: 100%; }
   .workspace { grid-template-columns: minmax(0, 1fr); padding-block: 18px 24px; }
   .setup, .results { width: 100%; }
   .empty { min-height: 270px; }
-  .method-grid { grid-template-columns: 1fr; gap: 11px; }
+  .method-grid { grid-template-columns: 1fr; gap: 20px; }
 }
 @media (max-width: 500px) {
   .page { width: calc(100% - 24px); }
@@ -304,7 +307,6 @@ canvas { display: block; width: 100%; }
   .masthead p, .method-link { grid-column: 2; grid-row: auto; }
   .masthead p { font-size: .87rem; }
   .method-link { margin-top: 3px; }
-  .mobile-break { display: block; }
   .setup { padding: 15px; }
   .results-head, .result-scope, .chart-block, .result-detail, .result-freshness:not(:empty) { padding-inline: 14px; }
   .result-scope { flex-wrap: wrap; }

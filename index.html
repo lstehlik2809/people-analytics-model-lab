@@ -4,18 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#183c35">
-    <meta name="description" content="Compare NVIDIA Kumo Tabular, Random Forest, and linear or logistic regression on held-out, fictional employee data.">
+    <meta name="description" content="Explore tabular foundation models for people analytics. Compare Kumo Tabular Small with Random Forest and linear or logistic regression on fictional employee data.">
     <link rel="icon" type="image/png" href="./favicon.png">
-    <title>People Analytics Model Lab</title>
+    <title>Tabular Foundation Models | People Analytics Model Lab</title>
   </head>
   <body>
     <a class="skip-link" href="#setup">Skip to analysis</a>
     <header class="masthead">
       <div class="page masthead-inner">
         <div class="site-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        <h1>People Analytics<br class="mobile-break"> Model Lab</h1>
-        <p>Compare Kumo Tabular, Random Forest, and traditional regression on fictional employee data.</p>
-        <a href="#method" class="method-link">How it works</a>
+        <h1>Tabular Foundation Models</h1>
+        <p>Try a tabular foundation model on fictional employee data. Compare NVIDIA’s Kumo Tabular Small with Random Forest and linear or logistic regression.</p>
+        <a href="#method" class="method-link">How the models learn</a>
       </div>
     </header>
     <main class="page">
@@ -70,23 +70,41 @@
         </section>
       </div>
       <section id="method" class="method" aria-labelledby="method-title">
-        <h2 id="method-title">How it works</h2>
+        <h2 id="method-title">How the models learn</h2>
         <div class="method-grid">
-          <div>
-            <h3>One split, three models</h3>
-            <p>About 80% of rows are used for fitting or as labeled examples. The three models predict the remaining 20%, whose outcome values are used to score the predictions. Classification keeps each class represented in both sets.</p>
-          </div>
-          <div>
-            <h3>Models</h3>
-            <p>Kumo Tabular Small predicts from labeled examples. Random Forest combines 200 trees. Each regression tree can split on any selected predictor. The traditional model is lightly regularized linear or logistic regression, with one-vs-rest logistic regression for multiple classes.</p>
-          </div>
-          <div>
-            <h3>Dataset</h3>
-            <p>IBM’s HR Attrition &amp; Performance dataset describes 1,470 fictional employees. Use it to explore prediction, with no inference about intervention effects or real employees.</p>
-          </div>
+          <article>
+            <h3>Tabular foundation models</h3>
+            <p>These models are pretrained across many prediction tasks on tables. Models such as Kumo Tabular and TabPFN can take rows with known outcomes as examples and predict an outcome for new rows with the same columns. This is called <strong>in-context learning</strong>.</p>
+            <p>This lab uses Kumo Tabular Small, the smallest of NVIDIA’s three Kumo Tabular sizes at about 28 million parameters. It was pretrained on simulated tables.</p>
+            <div class="method-sources">
+              <a href="https://docs.nvidia.com/sdgm/structured-data-models/models/kumo-tabular" target="_blank" rel="noopener">NVIDIA model documentation</a>
+              <a href="https://www.nature.com/articles/s41586-024-08328-6" target="_blank" rel="noopener">TabPFN paper in Nature</a>
+            </div>
+          </article>
+          <article>
+            <h3>Large language models</h3>
+            <p>Kumo and text-based large language models (LLMs) such as GPT-3 use transformers and can use examples with their weights fixed. GPT-3 is pretrained to predict the next token, or piece of text, and takes examples in a prompt. Kumo takes labeled rows as context and returns class probabilities or a numeric prediction for each new row.</p>
+            <div class="method-sources">
+              <a href="https://proceedings.neurips.cc/paper/2020/hash/1457c0d6bfcb4967418bfb8ac142f64a-Abstract.html" target="_blank" rel="noopener">GPT-3 paper at NeurIPS</a>
+            </div>
+          </article>
+          <article>
+            <h3>Linear models and Random Forest</h3>
+            <p>Linear regression fits coefficients to predict a number. Logistic regression fits coefficients to estimate class probabilities. Random Forest grows trees on resamples of the training rows and combines their predictions.</p>
+            <p>The lab lightly regularizes both regression models, uses one-vs-rest logistic regression for multiple classes, and fits a 200-tree Random Forest. In regression, each tree can split on any selected predictor.</p>
+            <div class="method-sources">
+              <a href="https://scikit-learn.org/stable/modules/linear_model.html" target="_blank" rel="noopener">Linear models guide</a>
+              <a href="https://scikit-learn.org/stable/modules/ensemble.html#random-forests" target="_blank" rel="noopener">Random Forest guide</a>
+            </div>
+          </article>
         </div>
-        <a href="./data/SOURCE.md">Dataset source and license</a>
-        <a href="https://huggingface.co/nvidia/Kumo-Tabular">Kumo model card</a>
+        <section class="method-evaluation" aria-labelledby="method-evaluation-title">
+          <h3 id="method-evaluation-title">How this lab compares them</h3>
+          <p>About 80% of the 1,470 fictional IBM employee rows are used as training examples. Kumo reads these rows as context with its pretrained weights fixed. Linear or logistic regression and Random Forest fit to the same training set. All three are scored on the remaining rows, whose outcomes are held back during prediction. The classification split keeps each class represented in both sets.</p>
+          <div class="method-sources">
+            <a href="./data/SOURCE.md" target="_blank" rel="noopener">Dataset source and license</a>
+          </div>
+        </section>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>

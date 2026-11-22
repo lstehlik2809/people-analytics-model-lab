@@ -1,6 +1,6 @@
 # People Analytics Model Lab
 
-A standalone browser app for comparing NVIDIA Kumo Tabular Small, Random Forest, and linear or logistic regression on IBM’s fictional employee data. Change the outcome and predictors, run the models, then check their scores and where their predictions go wrong.
+A browser lab for exploring tabular foundation models on IBM’s fictional employee data. It uses NVIDIA Kumo Tabular Small as an example of a pretrained model that predicts from labeled rows in context. Linear or logistic regression and Random Forest fit to those same training rows. Change the outcome and predictors to compare all three on the same held-out rows. [NVIDIA Kumo Tabular documentation](https://docs.nvidia.com/sdgm/structured-data-models/models/kumo-tabular)
 
 [Open People Analytics Model Lab](https://lstehlik2809.github.io/people-analytics-model-lab/)
 
