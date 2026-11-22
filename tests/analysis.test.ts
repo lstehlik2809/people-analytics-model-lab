@@ -79,22 +79,44 @@ test("binary and one-vs-rest logistic predict held-out examples with normalized 
   assert.ok(Math.abs(scores.reduce((sum, score) => sum + score, 0) - 1) < 1e-12);
 });
 
-test("Random Forest classification returns deterministic held-out vote fractions in class order", () => {
+test("Random Forest classification returns deterministic multiclass probabilities in class order", () => {
   const targets = Int32Array.from({ length: 60 }, (_, row) => Math.floor(row / 20));
   const train = Array.from(targets, (label, row) => label * 10 + row % 20 / 100);
   const feature: FeatureColumn = { name: "x", kind: "numerical", values: [...train, 20.1, 0.1, 10.1] };
   const matrix = designMatrix([feature], targets.length, feature.values.length);
-  const votes = forestClassification(matrix, targets, 3);
-  assert.deepEqual(votes, forestClassification(matrix, targets, 3));
-  assert.equal(votes.length, 9);
+  const probabilities = forestClassification(matrix, targets, 3);
+  assert.deepEqual(probabilities, forestClassification(matrix, targets, 3));
+  assert.equal(probabilities.length, 9);
   for (const [row, expectedClass] of [2, 0, 1].entries()) {
-    const scores = votes.slice(row * 3, (row + 1) * 3);
-    assert.equal(scores.reduce((sum, score) => sum + score, 0), 1);
-    assert.ok(scores.every((score) => {
-      const votes = score * 200;
-      return Math.abs(votes - Math.round(votes)) < 1e-12;
-    }));
+    const scores = probabilities.slice(row * 3, (row + 1) * 3);
+    assert.ok(Math.abs(scores.reduce((sum, score) => sum + score, 0) - 1) < 1e-12);
+    assert.ok(scores.every((score) => score >= 0 && score <= 1));
     assert.ok(scores[expectedClass] > 0.9);
+  }
+});
+
+test("Random Forest averages mixed-leaf class proportions even when no split is possible", () => {
+  const matrix = [0, 1, 2, 0, 2].map((value) => Float64Array.of(1, value));
+  const scores = forestClassification(matrix, Int32Array.of(0, 0, 2), 3);
+  // The seeded 200 bootstraps draw class 2 in 198 of 600 samples but give it only 45 majorities.
+  const expected = [0.67, 0, 0.33, 0.67, 0, 0.33];
+  assert.equal(scores.length, expected.length);
+  expected.forEach((value, index) => assert.ok(Math.abs(scores[index] - value) < 1e-12));
+});
+
+test("Random Forest searches past constant candidates and can split on a new feature in a child", () => {
+  const patterns = [
+    Float64Array.of(1, 0, 0, 0, 0),
+    Float64Array.of(1, 0, 1, 0, 0),
+    Float64Array.of(1, 1, 0, 0, 0),
+    Float64Array.of(1, 1, 1, 0, 0),
+  ];
+  const train = Array.from({ length: 120 }, (_, row) => patterns[row % patterns.length]);
+  const targets = Int32Array.from(train, (row) => row[1] * row[2]);
+  const scores = forestClassification([...train, ...patterns], targets, 2);
+  assert.equal(scores.length, 8);
+  for (const [row, expectedClass] of [0, 0, 0, 1].entries()) {
+    assert.ok(scores[row * 2 + expectedClass] > 0.99);
   }
 });
 

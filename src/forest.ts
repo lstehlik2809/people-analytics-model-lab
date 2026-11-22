@@ -4,9 +4,11 @@ const treeCount = 200;
 const maxDepth = 12;
 const minLeafSize = 3;
 
-type Tree = { prediction: number } | { column: number; threshold: number; left: Tree; right: Tree };
+type Prediction = number | number[];
+type Tree = { prediction: Prediction } | { column: number; threshold: number; left: Tree; right: Tree };
+type FeatureSampling = { count: number; random: () => number };
 type NodeStats = {
-  prediction: number;
+  prediction: Prediction;
   pure: boolean;
   scorePrefix: () => (value: number, leftCount: number) => number;
 };
@@ -14,12 +16,11 @@ type NodeStats = {
 function classStats(target: ArrayLike<number>, rows: number[], classCount: number): NodeStats {
   const counts = Array<number>(classCount).fill(0);
   for (const row of rows) counts[target[row]]++;
-  const prediction = counts.indexOf(Math.max(...counts));
   const squares = counts.reduce((sum, count) => sum + count ** 2, 0);
-  const parentScore = squares / rows.length;
+  const rowCount = rows.length;
   return {
-    prediction,
-    pure: counts[prediction] === rows.length,
+    prediction: counts.map((count) => count / rowCount),
+    pure: counts.includes(rowCount),
     scorePrefix() {
       const left = Array<number>(classCount).fill(0);
       const right = counts.slice();
@@ -30,8 +31,11 @@ function classStats(target: ArrayLike<number>, rows: number[], classCount: numbe
         rightSquares -= 2 * right[code] - 1;
         left[code]++;
         right[code]--;
-        // Weighted Gini reduction multiplied by the number of rows in this node.
-        return leftSquares / size + rightSquares / (rows.length - size) - parentScore;
+        // Keep the weighted Gini gain numerator integral so equal proportions give zero.
+        const rightSize = rowCount - size;
+        const childWeight = size * rightSize;
+        return (rowCount * (leftSquares * rightSize + rightSquares * size) - squares * childWeight) /
+          (rowCount * childWeight);
       };
     },
   };
@@ -60,13 +64,22 @@ function fitTree(
   columns: number[],
   depth: number,
   classCount: number,
+  sampling?: FeatureSampling,
 ): Tree {
   const stats = classCount ? classStats(target, rows, classCount) : regressionStats(target, rows);
   if (depth >= maxDepth || rows.length < 2 * minLeafSize || stats.pure) return { prediction: stats.prediction };
 
   let bestGain = 0;
   let split: { column: number; threshold: number; sorted: number[]; size: number } | null = null;
-  for (const column of columns) {
+  const candidates = sampling ? columns.slice() : columns;
+  for (let index = 0; index < candidates.length; index++) {
+    if (sampling) {
+      // Draw without replacement at each node. Try more columns only if none improved the split.
+      if (index >= sampling.count && split) break;
+      const other = index + Math.floor(sampling.random() * (candidates.length - index));
+      [candidates[index], candidates[other]] = [candidates[other], candidates[index]];
+    }
+    const column = candidates[index];
     const sorted = rows.slice().sort((a, b) => matrix[a][column] - matrix[b][column]);
     const gainAt = stats.scorePrefix();
     for (let size = 1; size <= sorted.length - minLeafSize; size++) {
@@ -86,12 +99,12 @@ function fitTree(
   return {
     column,
     threshold,
-    left: fitTree(matrix, target, sorted.slice(0, size), columns, depth + 1, classCount),
-    right: fitTree(matrix, target, sorted.slice(size), columns, depth + 1, classCount),
+    left: fitTree(matrix, target, sorted.slice(0, size), columns, depth + 1, classCount, sampling),
+    right: fitTree(matrix, target, sorted.slice(size), columns, depth + 1, classCount, sampling),
   };
 }
 
-function predict(tree: Tree, row: Float64Array): number {
+function predict(tree: Tree, row: Float64Array): Prediction {
   while ("column" in tree) tree = row[tree.column] <= tree.threshold ? tree.left : tree.right;
   return tree.prediction;
 }
@@ -103,26 +116,20 @@ function predictForest(matrix: Float64Array[], target: ArrayLike<number>, classC
   const featureCount = matrix[0].length - 1;
   // Column zero is the regression intercept. Trees split on encoded predictors.
   const allColumns = Array.from({ length: featureCount }, (_, index) => index + 1);
-  const classificationFeaturesPerTree = Math.ceil(Math.sqrt(featureCount));
+  const sampling = classCount ? { count: Math.floor(Math.sqrt(featureCount)), random } : undefined;
   const width = Math.max(1, classCount);
   const result = new Float64Array((matrix.length - trainCount) * width);
   for (let treeIndex = 0; treeIndex < treeCount; treeIndex++) {
     const sample = Array.from({ length: trainCount }, () => Math.floor(random() * trainCount));
-    let columns = allColumns;
-    if (classCount) {
-      columns = allColumns.slice();
-      for (let index = 0; index < classificationFeaturesPerTree; index++) {
-        const other = index + Math.floor(random() * (featureCount - index));
-        [columns[index], columns[other]] = [columns[other], columns[index]];
-      }
-      columns.length = classificationFeaturesPerTree;
-    }
-    const root = fitTree(matrix, target, sample, columns, 0, classCount);
+    const root = fitTree(matrix, target, sample, allColumns, 0, classCount, sampling);
     for (let row = trainCount; row < matrix.length; row++) {
       const value = predict(root, matrix[row]);
       const offset = (row - trainCount) * width;
-      if (classCount) result[offset + value]++;
-      else result[offset] += value;
+      if (typeof value === "number") {
+        result[offset] += value;
+      } else {
+        for (let code = 0; code < classCount; code++) result[offset + code] += value[code];
+      }
     }
   }
   return result.map((value) => value / treeCount);
