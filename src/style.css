@@ -187,6 +187,16 @@ input[type="checkbox"] { accent-color: var(--accent); width: 17px; height: 17px;
 
 .results { --results-band: #f8faf5; overflow: clip; }
 .results.is-stale { --results-band: #e8eee5; background: #f0f3eb; }
+/* A white veil mutes previous results. They stay readable and usable until the next run. */
+#results-content { position: relative; }
+.results.is-stale #results-content::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: rgb(255 255 255 / .68);
+  pointer-events: none;
+}
 .results-head { padding: 17px 22px; background: var(--results-band); border-bottom: 1px solid var(--border); }
 .result-freshness:not(:empty) {
   background: #dfe9dd;
